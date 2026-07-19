@@ -8,8 +8,6 @@ GOOGLE_REVIEW_LIMIT = 5
 
 
 class GoogleMapsReviewSource:
-    """Places API (New) source. Google returns at most 5 reviews per place."""
-
     def __init__(self, api_key: str) -> None:
         self.api_key = api_key
         self.source_limit = GOOGLE_REVIEW_LIMIT
