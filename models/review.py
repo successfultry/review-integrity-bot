@@ -57,6 +57,8 @@ class AnalyzedReview(BaseModel):
 class AnalyzeRequest(BaseModel):
     source: Literal["google_maps", "serpapi"] = "google_maps"
     source_id: str = Field(min_length=1)
+    reviews_limit: int | None = Field(default=None, ge=1)
+    sort: Literal["most_relevant", "newest", "highest_rating", "lowest_rating"] = "newest"
 
 
 class AnalysisResult(BaseModel):
@@ -67,6 +69,8 @@ class AnalysisResult(BaseModel):
     delta: float | None
     total: int
     sample_size: int
+    official_rating: float | None = None
+    official_review_count: int | None = None
     source_limit: int | None = None
     warning: str | None = None
     excluded_count: int = 0

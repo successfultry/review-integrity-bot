@@ -20,11 +20,19 @@ def get_analyzer(settings: Settings = Depends(get_settings)) -> ReviewAnalyzer:
 
 
 @app.get("/", response_class=HTMLResponse)
-async def home(request: Request) -> HTMLResponse:
+async def home(request: Request, settings: Settings = Depends(get_settings)) -> HTMLResponse:
     return templates.TemplateResponse(
         request=request,
         name="index.html",
-        context={"result": None, "source": "google_maps", "source_id": "", "error": ""},
+        context={
+            "result": None,
+            "source": settings.default_source if settings.default_source in {"google_maps", "serpapi"} else "serpapi",
+            "source_id": "",
+            "sort": "newest",
+            "reviews_limit": 50,
+            "error": "",
+            "fallback_count": 0,
+        },
     )
 
 
@@ -43,20 +51,32 @@ async def analyze(request: AnalyzeRequest, analyzer: ReviewAnalyzer = Depends(ge
 @app.post("/analyze-ui", response_class=HTMLResponse)
 async def analyze_ui(request: Request, analyzer: ReviewAnalyzer = Depends(get_analyzer)) -> HTMLResponse:
     form = await request.form()
-    source = str(form.get("source", "google_maps"))
+    source = str(form.get("source", "serpapi"))
     source_id = str(form.get("source_id", "")).strip()
+    sort = str(form.get("sort", "newest")).strip() or "newest"
+    reviews_limit_raw = str(form.get("reviews_limit", "50")).strip()
+    reviews_limit = 50
+    if reviews_limit_raw:
+        try:
+            reviews_limit = max(1, int(reviews_limit_raw))
+        except ValueError:
+            raise SourceError("reviews_limit must be an integer")
     trace_id = new_trace_id()
     error = ""
     result = None
+    fallback_count = 0
     try:
         if source not in {"google_maps", "serpapi"}:
             raise SourceError(f"unsupported source: {source}")
+        if sort not in {"most_relevant", "newest", "highest_rating", "lowest_rating"}:
+            raise SourceError(f"unsupported sort: {sort}")
         if not source_id:
             raise SourceError("source_id is required")
         result = await analyzer.analyze(
-            AnalyzeRequest(source=source, source_id=source_id),
+            AnalyzeRequest(source=source, source_id=source_id, sort=sort, reviews_limit=reviews_limit),
             trace_id=trace_id,
         )
+        fallback_count = sum(1 for item in result.reviews if item.method.value == "fallback")
     except SourceError as exc:
         error = f"source_error: {exc.detail}"
     except Exception as exc:  # noqa: BLE001
@@ -64,5 +84,13 @@ async def analyze_ui(request: Request, analyzer: ReviewAnalyzer = Depends(get_an
     return templates.TemplateResponse(
         request=request,
         name="index.html",
-        context={"result": result, "source": source, "source_id": source_id, "error": error},
+        context={
+            "result": result,
+            "source": source,
+            "source_id": source_id,
+            "sort": sort,
+            "reviews_limit": reviews_limit,
+            "error": error,
+            "fallback_count": fallback_count,
+        },
     )

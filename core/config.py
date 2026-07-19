@@ -22,7 +22,7 @@ class Settings:
         self.google_maps_api_key = os.getenv("GOOGLE_MAPS_API_KEY", "").strip()
         self.serpapi_api_key = os.getenv("SERPAPI_KEY", "").strip()
         self.serpapi_reviews_limit = int(os.getenv("SERPAPI_REVIEWS_LIMIT", "200"))
-        self.default_source = os.getenv("DEFAULT_SOURCE", "google_maps").strip()
+        self.default_source = os.getenv("DEFAULT_SOURCE", "serpapi").strip()
         self.input_price_per_1m = float(os.getenv("INPUT_PRICE_PER_1M", "0.15"))
         self.output_price_per_1m = float(os.getenv("OUTPUT_PRICE_PER_1M", "0.60"))
         self.classify_max_retries = int(os.getenv("CLASSIFY_MAX_RETRIES", "3"))

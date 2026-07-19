@@ -8,9 +8,11 @@
     body { font-family: Inter, system-ui, sans-serif; margin: 2rem; background: #f8fafc; color: #0f172a; }
     .card { background: white; border-radius: 12px; padding: 1rem 1.2rem; box-shadow: 0 2px 10px rgba(0,0,0,.06); margin-bottom: 1rem; }
     .row { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
-    input, select, button { padding: .5rem .7rem; border-radius: 8px; border: 1px solid #cbd5e1; }
-    button { background: #0f172a; color: white; cursor: pointer; }
-    .kpi { font-size: 1.2rem; font-weight: 700; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap: 1rem; }
+    input, select, button { padding: .55rem .75rem; border-radius: 8px; border: 1px solid #cbd5e1; font-size: .92rem; }
+    button { background: #0f172a; color: white; cursor: pointer; border: 0; }
+    .kpi { font-size: 1.35rem; font-weight: 700; }
+    .sub { color:#64748b; font-size: .82rem; }
     .badge { padding: .18rem .45rem; border-radius: 999px; font-size: .75rem; font-weight: 600; }
     .valid { background:#dcfce7; color:#166534; }
     .low_effort { background:#e0e7ff; color:#3730a3; }
@@ -19,9 +21,12 @@
     .empty { background:#e2e8f0; color:#334155; }
     .uncertain { background:#f1f5f9; color:#475569; }
     .error { color:#b91c1c; font-weight:600; }
-    .warn { color:#92400e; background:#fef3c7; padding:.5rem .7rem; border-radius:8px; }
+    .warn { color:#92400e; background:#fef3c7; padding:.65rem .8rem; border-radius:8px; border:1px solid #fcd34d; }
+    .tip { color:#334155; background:#eff6ff; padding:.65rem .8rem; border-radius:8px; border:1px solid #bfdbfe; }
+    .review { border-bottom:1px solid #e2e8f0; padding:.6rem 0; }
+    .method { background:#f1f5f9; border-radius:999px; padding:.1rem .45rem; font-size: .75rem; color:#334155; }
     table { border-collapse: collapse; width: 100%; }
-    td, th { border-bottom: 1px solid #e2e8f0; padding: .4rem .2rem; text-align: left; }
+    td, th { border-bottom: 1px solid #e2e8f0; padding: .45rem .25rem; text-align: left; font-size: .92rem; }
   </style>
 </head>
 <body>
@@ -31,26 +36,76 @@
     <form method="post" action="/analyze-ui" class="row">
       <label>Source
         <select name="source">
-          <option value="google_maps" {% if source == 'google_maps' %}selected{% endif %}>google_maps</option>
           <option value="serpapi" {% if source == 'serpapi' %}selected{% endif %}>serpapi</option>
+          <option value="google_maps" {% if source == 'google_maps' %}selected{% endif %}>google_maps</option>
         </select>
       </label>
-      <label>Place query / source_id
-        <input name="source_id" value="{{ source_id }}" placeholder="e.g. Central Park New York" required />
+      <label>Place search query
+        <input
+          name="source_id"
+          value="{{ source_id }}"
+          placeholder="e.g. Gorky Park Moscow / Шоколадница Октябрьская Москва"
+          style="min-width: 360px"
+          required
+        />
+      </label>
+      <label>Sort
+        <select name="sort">
+          <option value="newest" {% if sort == 'newest' %}selected{% endif %}>newest</option>
+          <option value="most_relevant" {% if sort == 'most_relevant' %}selected{% endif %}>most_relevant</option>
+          <option value="highest_rating" {% if sort == 'highest_rating' %}selected{% endif %}>highest_rating</option>
+          <option value="lowest_rating" {% if sort == 'lowest_rating' %}selected{% endif %}>lowest_rating</option>
+        </select>
+      </label>
+      <label>reviews_limit
+        <input type="number" name="reviews_limit" min="1" value="{{ reviews_limit }}" style="width: 92px" />
       </label>
       <button type="submit">Analyze</button>
     </form>
+    <p class="sub" style="margin-top:.65rem">
+      <strong>How to search:</strong> use place name + city/metro/address for precision.
+      <br/>Source hints: <code>serpapi</code> = many Google reviews (paid quota), <code>google_maps</code> = official API (max 5 reviews).
+    </p>
     {% if error %}<p class="error">{{ error }}</p>{% endif %}
   </div>
 
   {% if result %}
   {% if result.warning %}<p class="warn">{{ result.warning }}</p>{% endif %}
-  <div class="card row">
-    <div><div>Naive rating</div><div class="kpi">{{ result.naive_rating }}</div></div>
-    <div><div>True rating</div><div class="kpi">{% if result.true_rating is not none %}{{ result.true_rating }}{% else %}n/a{% endif %}</div></div>
-    <div><div>Delta</div><div class="kpi">{% if result.delta is not none %}{{ result.delta }}{% else %}n/a{% endif %}</div></div>
-    <div><div>Sample</div><div class="kpi">{{ result.sample_size }}{% if result.source_limit %}/{{ result.source_limit }}{% endif %}</div></div>
-    <div><div>Excluded</div><div class="kpi">{{ result.excluded_count }}</div></div>
+  {% if fallback_count > 0 %}
+  <p class="warn">LLM unavailable for {{ fallback_count }} reviews; heuristic fallback was used. Check OPENAI_API_KEY / USE_LLM / logs.</p>
+  {% endif %}
+
+  <div class="card">
+    <h3 style="margin-top:0">Official vs True</h3>
+    <div class="grid">
+      <div>
+        <div class="sub">Official (source)</div>
+        <div class="kpi">{% if result.official_rating is not none %}{{ result.official_rating }}{% else %}n/a{% endif %}</div>
+      </div>
+      <div>
+        <div class="sub">True (filtered)</div>
+        <div class="kpi">{% if result.true_rating is not none %}{{ result.true_rating }}{% else %}n/a{% endif %}</div>
+      </div>
+      <div>
+        <div class="sub">Delta (True - Official)</div>
+        <div class="kpi">
+          {% if result.true_rating is not none and result.official_rating is not none %}
+            {{ '%.3f'|format(result.true_rating - result.official_rating) }}
+          {% else %}
+            n/a
+          {% endif %}
+        </div>
+      </div>
+      <div>
+        <div class="sub">Sample / Official count</div>
+        <div class="kpi">{{ result.sample_size }} / {% if result.official_review_count is not none %}{{ result.official_review_count }}{% else %}n/a{% endif %}</div>
+      </div>
+    </div>
+    <p class="tip" style="margin-top:.75rem">
+      Sample avg (bias check): <strong>{{ result.naive_rating }}</strong>
+      {% if result.delta is not none %} | True - Sample delta: <strong>{{ result.delta }}</strong>{% endif %}
+      | Excluded: <strong>{{ result.excluded_count }}</strong>
+    </p>
   </div>
 
   <div class="card">
@@ -61,23 +116,22 @@
       <tr><td>{{ label }}</td><td>{{ count }}</td></tr>
       {% endfor %}
     </table>
-    <p><strong>Tokens:</strong> {{ result.usage.total_tokens }}
-       | <strong>Estimated cost:</strong> ${{ '%.6f'|format(result.usage.estimated_cost_usd) }}</p>
+    <p><strong>Tokens:</strong> {{ result.usage.total_tokens }} | <strong>Estimated cost:</strong> ${{ '%.6f'|format(result.usage.estimated_cost_usd) }}</p>
   </div>
 
   <div class="card">
     <h3>Reviews</h3>
     {% for review in result.reviews %}
-      <div style="border-bottom:1px solid #e2e8f0; padding:.6rem 0;">
+      <div class="review">
         <div class="row">
           <strong>{{ review.review_id }}</strong>
           <span>★ {{ review.rating }}</span>
           <span class="badge {{ review.label.value }}">{{ review.label.value }}</span>
-          <span>conf {{ '%.2f'|format(review.confidence) }}</span>
-          <span>{{ review.method.value }}</span>
+          <span class="method">{{ review.method.value }}</span>
+          <span class="sub">conf {{ '%.2f'|format(review.confidence) }}</span>
         </div>
-        <div>{{ review.text }}</div>
-        <div style="color:#334155; font-size:.9rem">{{ review.reason }}</div>
+        <div style="margin-top:.3rem">{{ review.text }}</div>
+        <div class="sub" style="margin-top:.25rem">{{ review.reason }}</div>
       </div>
     {% endfor %}
   </div>

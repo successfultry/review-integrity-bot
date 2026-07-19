@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from adapters.base import PlaceMeta
 from adapters.google_maps import GOOGLE_REVIEW_LIMIT, GoogleMapsReviewSource
 from adapters.serpapi_reviews import SERPAPI_DEFAULT_REVIEWS_LIMIT, SerpApiReviewSource
 from core.config import Settings
@@ -28,20 +29,30 @@ class ReviewAnalyzer:
             raise SourceError("source_id is required")
 
         source = request.source
+        requested_limit = request.reviews_limit
+        requested_sort = request.sort
         source_limit: int | None = None
         warning: str | None = None
         if source == "serpapi":
             if not self.settings.serpapi_api_key:
                 raise SourceError("SERPAPI_KEY is not set")
-            source_limit = self.settings.serpapi_reviews_limit
+            source_limit = requested_limit or self.settings.serpapi_reviews_limit
         else:
-            source_limit = GOOGLE_REVIEW_LIMIT
+            source_limit = min(GOOGLE_REVIEW_LIMIT, requested_limit) if requested_limit else GOOGLE_REVIEW_LIMIT
 
         try:
             if source == "serpapi":
-                reviews = await self.serpapi_source.fetch(source_id)
+                reviews, meta = await self.serpapi_source.fetch(
+                    source_id,
+                    reviews_limit=source_limit,
+                    sort=requested_sort,
+                )
             else:
-                reviews = await self.google_source.fetch(source_id)
+                reviews, meta = await self.google_source.fetch(
+                    source_id,
+                    reviews_limit=source_limit,
+                    sort=requested_sort,
+                )
         except SourceError:
             raise
         except Exception as exc:  # noqa: BLE001
@@ -51,6 +62,8 @@ class ReviewAnalyzer:
             )
             raise SourceError(f"{source} fetch failed: {exc}") from exc
 
+        if not isinstance(meta, PlaceMeta):
+            meta = PlaceMeta(place_name=source_id)
         if not reviews:
             raise SourceError(f"no reviews found for source={source!r} source_id={source_id!r}")
 
@@ -97,6 +110,8 @@ class ReviewAnalyzer:
             delta=float(delta) if delta is not None else None,
             total=int(score["total"]),
             sample_size=sample_size,
+            official_rating=meta.official_rating,
+            official_review_count=meta.official_review_count,
             source_limit=source_limit,
             warning=warning,
             excluded_count=int(score["excluded_count"]),

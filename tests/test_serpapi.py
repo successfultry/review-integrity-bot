@@ -4,6 +4,7 @@ from typing import Any
 
 import pytest
 
+from adapters.base import PlaceMeta
 from adapters.serpapi_reviews import SerpApiReviewSource
 
 
@@ -41,7 +42,7 @@ class _FakeAsyncClient:
 async def test_serpapi_pagination_and_limit(monkeypatch: pytest.MonkeyPatch) -> None:
     responses = [
         {
-            "local_results": [{"data_id": "abc123", "title": "Best Cafe"}],
+            "place_results": {"data_id": "abc123", "title": "Best Cafe", "rating": 4.4, "reviews": 987},
         },
         {
             "reviews": [
@@ -65,9 +66,13 @@ async def test_serpapi_pagination_and_limit(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setattr("adapters.serpapi_reviews.httpx.AsyncClient", _client_factory)
     source = SerpApiReviewSource(api_key="k", reviews_limit=3)
 
-    out = await source.fetch("best cafe nyc")
+    out, meta = await source.fetch("best cafe nyc", reviews_limit=3, sort="newest")
 
     assert len(out) == 3
+    assert isinstance(meta, PlaceMeta)
+    assert meta.place_name == "Best Cafe"
+    assert meta.official_rating == 4.4
+    assert meta.official_review_count == 987
     assert out[0].review_id == "serp-1"
     assert out[0].rating == 5
     assert out[0].text == "Great coffee"
@@ -77,12 +82,13 @@ async def test_serpapi_pagination_and_limit(monkeypatch: pytest.MonkeyPatch) -> 
 
     assert calls[0]["params"]["engine"] == "google_maps"
     assert calls[1]["params"]["engine"] == "google_maps_reviews"
+    assert calls[1]["params"]["sort_by"] == "newestFirst"
     assert calls[2]["params"]["next_page_token"] == "tok-2"
 
 
 @pytest.mark.asyncio
 async def test_serpapi_no_data_id_returns_empty(monkeypatch: pytest.MonkeyPatch) -> None:
-    responses = [{"local_results": [{"title": "No data id"}]}]
+    responses = [{"place_results": {"title": "No data id", "rating": "4.1", "reviews": "2,145"}}]
     calls: list[dict[str, Any]] = []
 
     def _client_factory(timeout: float) -> _FakeAsyncClient:
@@ -90,6 +96,9 @@ async def test_serpapi_no_data_id_returns_empty(monkeypatch: pytest.MonkeyPatch)
 
     monkeypatch.setattr("adapters.serpapi_reviews.httpx.AsyncClient", _client_factory)
     source = SerpApiReviewSource(api_key="k", reviews_limit=10)
-    out = await source.fetch("unknown")
+    out, meta = await source.fetch("unknown")
     assert out == []
+    assert meta.place_name == "No data id"
+    assert meta.official_rating == 4.1
+    assert meta.official_review_count == 2145
     assert len(calls) == 1

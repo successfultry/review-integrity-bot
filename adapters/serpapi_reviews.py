@@ -2,9 +2,16 @@ from __future__ import annotations
 
 import httpx
 
+from adapters.base import PlaceMeta, ReviewSort
 from models.review import Review
 
 SERPAPI_DEFAULT_REVIEWS_LIMIT = 200
+_SERPAPI_SORT_MAP: dict[ReviewSort, str] = {
+    "newest": "newestFirst",
+    "most_relevant": "qualityScore",
+    "highest_rating": "ratingHigh",
+    "lowest_rating": "ratingLow",
+}
 
 
 class SerpApiReviewSource:
@@ -12,10 +19,18 @@ class SerpApiReviewSource:
         self.api_key = api_key
         self.reviews_limit = max(1, reviews_limit)
 
-    async def fetch(self, source_id: str) -> list[Review]:
+    async def fetch(
+        self,
+        source_id: str,
+        *,
+        reviews_limit: int | None = None,
+        sort: ReviewSort = "newest",
+    ) -> tuple[list[Review], PlaceMeta]:
         query = source_id.strip()
         if not query:
             raise ValueError("source_id is required for serpapi")
+        effective_limit = max(1, reviews_limit or self.reviews_limit)
+        sort_by = _SERPAPI_SORT_MAP.get(sort, _SERPAPI_SORT_MAP["newest"])
 
         async with httpx.AsyncClient(timeout=20.0) as client:
             search_resp = await client.get(
@@ -30,18 +45,26 @@ class SerpApiReviewSource:
             search_payload = search_resp.json()
 
             data_id = self._extract_data_id(search_payload)
-            if not data_id:
-                return []
             place_name = self._extract_place_name(search_payload, query)
+            official_rating = self._extract_official_rating(search_payload)
+            official_review_count = self._extract_official_review_count(search_payload)
+            meta = PlaceMeta(
+                place_name=place_name,
+                official_rating=official_rating,
+                official_review_count=official_review_count,
+            )
+            if not data_id:
+                return [], meta
 
             out: list[Review] = []
             next_page_token: str | None = None
             page_index = 0
-            while len(out) < self.reviews_limit:
+            while len(out) < effective_limit:
                 params: dict[str, str] = {
                     "engine": "google_maps_reviews",
                     "data_id": data_id,
                     "api_key": self.api_key,
+                    "sort_by": sort_by,
                 }
                 if next_page_token:
                     params["next_page_token"] = next_page_token
@@ -66,7 +89,7 @@ class SerpApiReviewSource:
                             source=f"serpapi:{place_name}",
                         )
                     )
-                    if len(out) >= self.reviews_limit:
+                    if len(out) >= effective_limit:
                         break
 
                 pagination = reviews_payload.get("serpapi_pagination", {})
@@ -74,7 +97,7 @@ class SerpApiReviewSource:
                 if not next_page_token:
                     break
 
-            return out
+            return out, meta
 
     def _extract_data_id(self, payload: dict) -> str:
         place_results = payload.get("place_results", {})
@@ -104,3 +127,34 @@ class SerpApiReviewSource:
                 if title:
                     return title
         return default
+
+    def _extract_official_rating(self, payload: dict) -> float | None:
+        place_results = payload.get("place_results", {})
+        if isinstance(place_results, dict):
+            rating = place_results.get("rating")
+            if isinstance(rating, (int, float)):
+                return float(rating)
+            if isinstance(rating, str):
+                try:
+                    return float(rating)
+                except ValueError:
+                    return None
+        return None
+
+    def _extract_official_review_count(self, payload: dict) -> int | None:
+        place_results = payload.get("place_results", {})
+        if not isinstance(place_results, dict):
+            return None
+
+        for key in ("reviews", "user_reviews", "reviews_count"):
+            raw = place_results.get(key)
+            if isinstance(raw, int):
+                return raw
+            if isinstance(raw, str):
+                cleaned = "".join(ch for ch in raw if ch.isdigit())
+                if cleaned:
+                    try:
+                        return int(cleaned)
+                    except ValueError:
+                        continue
+        return None

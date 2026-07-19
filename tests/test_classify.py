@@ -98,3 +98,52 @@ async def test_rating_text_mismatch_uncertain() -> None:
     )
     classification, _ = await classifier.classify_one(review, trace_id="t4")
     assert classification.label == ReviewClass.uncertain
+
+
+@pytest.mark.asyncio
+async def test_llm_path_works_without_prompt_format_error() -> None:
+    settings = DummySettings()
+    classifier = ReviewClassifier(settings)
+
+    class _FakeMessage:
+        def __init__(self) -> None:
+            self.content = '{"label":"valid","reason":"specific usage details","confidence":0.84}'
+
+    class _FakeChoice:
+        def __init__(self) -> None:
+            self.message = _FakeMessage()
+
+    class _FakeUsage:
+        prompt_tokens = 12
+        completion_tokens = 9
+        total_tokens = 21
+
+    class _FakeResponse:
+        def __init__(self) -> None:
+            self.choices = [_FakeChoice()]
+            self.usage = _FakeUsage()
+
+    class _FakeCompletions:
+        async def create(self, **kwargs: object) -> _FakeResponse:
+            # Ensure nonce markers are in the user payload and no formatting exception occurred.
+            messages = kwargs.get("messages", [])
+            assert isinstance(messages, list)
+            user_msg = messages[1]["content"] if len(messages) > 1 else ""
+            assert "<<REVIEW:" in user_msg
+            assert "<<END:" in user_msg
+            return _FakeResponse()
+
+    class _FakeChat:
+        def __init__(self) -> None:
+            self.completions = _FakeCompletions()
+
+    class _FakeClient:
+        def __init__(self) -> None:
+            self.chat = _FakeChat()
+
+    classifier.client = _FakeClient()  # type: ignore[assignment]
+    review = Review(review_id="r5", rating=4, text="Used for two weeks, works as expected.", author="e", source="x")
+    classification, usage = await classifier.classify_one(review, trace_id="t5")
+    assert classification.method == ClassificationMethod.llm
+    assert classification.label == ReviewClass.valid
+    assert usage.total_tokens == 21
