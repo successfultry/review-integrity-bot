@@ -5,12 +5,13 @@ from adapters.google_maps import GOOGLE_REVIEW_LIMIT, GoogleMapsReviewSource
 from adapters.serpapi_reviews import SERPAPI_DEFAULT_REVIEWS_LIMIT, SerpApiReviewSource
 from core.config import Settings
 from core.logging import get_logger
-from models.review import AnalysisResult, AnalyzeRequest, AnalyzedReview
+from models.review import AnalysisResult, AnalyzeRequest, AnalyzedReview, ReviewClass
 from services.classify import ReviewClassifier
 from services.errors import SourceError
 from services.score import score_reviews
 
 LOG = get_logger(__name__)
+_CONTRIBUTING_LABELS = {ReviewClass.valid, ReviewClass.low_effort}
 
 
 class ReviewAnalyzer:
@@ -92,6 +93,7 @@ class ReviewAnalyzer:
             )
             for r, c in zip(reviews, classifications)
         ]
+        analyzed_reviews.sort(key=lambda item: item.label not in _CONTRIBUTING_LABELS)
 
         sample_size = len(reviews)
         if source == "google_maps" and sample_size >= GOOGLE_REVIEW_LIMIT:
@@ -105,6 +107,7 @@ class ReviewAnalyzer:
         return AnalysisResult(
             source=source,
             source_id=source_id,
+            place_name=meta.place_name,
             naive_rating=float(score["naive_rating"]),
             true_rating=float(true_rating) if true_rating is not None else None,
             delta=float(delta) if delta is not None else None,

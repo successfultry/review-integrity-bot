@@ -5,35 +5,162 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Review Integrity Bot</title>
   <style>
-    body { font-family: Inter, system-ui, sans-serif; margin: 2rem; background: #f8fafc; color: #0f172a; }
-    .card { background: white; border-radius: 12px; padding: 1rem 1.2rem; box-shadow: 0 2px 10px rgba(0,0,0,.06); margin-bottom: 1rem; }
-    .row { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap: 1rem; }
-    input, select, button { padding: .55rem .75rem; border-radius: 8px; border: 1px solid #cbd5e1; font-size: .92rem; }
-    button { background: #0f172a; color: white; cursor: pointer; border: 0; }
-    .kpi { font-size: 1.35rem; font-weight: 700; }
-    .sub { color:#64748b; font-size: .82rem; }
-    .badge { padding: .18rem .45rem; border-radius: 999px; font-size: .75rem; font-weight: 600; }
+    :root {
+      --bg: #f1f5f9;
+      --card: #ffffff;
+      --line: #dbe4ef;
+      --text: #0f172a;
+      --muted: #5b6b82;
+      --brand: #1e293b;
+      --brand-2: #0f172a;
+      --ok-bg: #dcfce7;
+      --ok-text: #166534;
+      --blue-bg: #e0e7ff;
+      --blue-text: #3730a3;
+      --warn-bg: #fef3c7;
+      --warn-text: #92400e;
+      --danger-bg: #fee2e2;
+      --danger-text: #991b1b;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: Inter, system-ui, sans-serif;
+      margin: 0;
+      background: radial-gradient(circle at top right, #e2e8f0 0, var(--bg) 44%);
+      color: var(--text);
+    }
+    .container { max-width: 1160px; margin: 0 auto; padding: 1.5rem; }
+    .title-wrap { margin-bottom: 1rem; }
+    h1 { margin: 0; font-size: 1.75rem; letter-spacing: -0.02em; }
+    .sub { color: var(--muted); font-size: .84rem; line-height: 1.45; }
+    .card {
+      background: var(--card);
+      border-radius: 14px;
+      border: 1px solid #e2e8f0;
+      padding: 1rem 1.2rem;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, .06);
+      margin-bottom: 1rem;
+    }
+    .row { display: flex; gap: .9rem; align-items: center; flex-wrap: wrap; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap: .8rem; }
+    .stats-grid { margin-top: .75rem; }
+    .kpi-box {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+      padding: .75rem .85rem;
+      min-height: 92px;
+    }
+    .kpi { font-size: 1.45rem; font-weight: 700; letter-spacing: -0.02em; margin-top: .15rem; }
+    input, select, button {
+      padding: .58rem .75rem;
+      border-radius: 10px;
+      border: 1px solid #cbd5e1;
+      font-size: .92rem;
+      background: #fff;
+      color: var(--text);
+    }
+    input:focus, select:focus {
+      outline: none;
+      border-color: #64748b;
+      box-shadow: 0 0 0 3px rgba(100, 116, 139, .15);
+    }
+    button {
+      background: linear-gradient(180deg, var(--brand) 0%, var(--brand-2) 100%);
+      color: #fff;
+      cursor: pointer;
+      border: 0;
+      font-weight: 600;
+      transition: transform .08s ease, box-shadow .08s ease, opacity .08s ease;
+    }
+    button:hover { transform: translateY(-1px); box-shadow: 0 8px 14px rgba(15, 23, 42, .18); }
+    button[disabled] { opacity: .72; cursor: wait; transform: none; box-shadow: none; }
+    .badge {
+      padding: .18rem .45rem;
+      border-radius: 999px;
+      font-size: .75rem;
+      font-weight: 600;
+      border: 1px solid transparent;
+    }
     .valid { background:#dcfce7; color:#166534; }
     .low_effort { background:#e0e7ff; color:#3730a3; }
-    .speculative { background:#fef3c7; color:#92400e; }
-    .spam_offtopic { background:#fee2e2; color:#991b1b; }
+    .speculative { background:var(--warn-bg); color:var(--warn-text); }
+    .spam_offtopic { background:var(--danger-bg); color:var(--danger-text); }
     .empty { background:#e2e8f0; color:#334155; }
     .uncertain { background:#f1f5f9; color:#475569; }
-    .error { color:#b91c1c; font-weight:600; }
-    .warn { color:#92400e; background:#fef3c7; padding:.65rem .8rem; border-radius:8px; border:1px solid #fcd34d; }
-    .tip { color:#334155; background:#eff6ff; padding:.65rem .8rem; border-radius:8px; border:1px solid #bfdbfe; }
-    .review { border-bottom:1px solid #e2e8f0; padding:.6rem 0; }
-    .method { background:#f1f5f9; border-radius:999px; padding:.1rem .45rem; font-size: .75rem; color:#334155; }
-    table { border-collapse: collapse; width: 100%; }
-    td, th { border-bottom: 1px solid #e2e8f0; padding: .45rem .25rem; text-align: left; font-size: .92rem; }
+    .error {
+      color:#b91c1c;
+      font-weight:600;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 10px;
+      padding: .6rem .75rem;
+      margin-top: .75rem;
+    }
+    .warn {
+      color: var(--warn-text);
+      background: var(--warn-bg);
+      padding:.65rem .8rem;
+      border-radius:10px;
+      border:1px solid #fcd34d;
+      margin-bottom: .9rem;
+    }
+    .tip {
+      color:#334155;
+      background:#eff6ff;
+      padding:.7rem .8rem;
+      border-radius:10px;
+      border:1px solid #bfdbfe;
+      margin-bottom: .2rem;
+    }
+    .method { background:#f1f5f9; border-radius:999px; padding:.1rem .45rem; font-size: .75rem; color:#334155; border:1px solid #e2e8f0; }
+    .excluded-tag { background:#fff7ed; color:#9a3412; border-radius:999px; padding:.1rem .45rem; font-size:.75rem; border:1px solid #fed7aa; }
+    .muted { opacity:.42; }
+    .help { margin-top:.75rem; }
+    summary { cursor: pointer; user-select: none; font-weight: 600; }
+    .table-wrap { overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; min-width: 520px; }
+    td, th {
+      border-bottom: 1px solid #e2e8f0;
+      padding: .5rem .35rem;
+      text-align: left;
+      font-size: .92rem;
+      white-space: nowrap;
+    }
+    th { color: #334155; font-weight: 650; }
+    .reviews-list { margin-top: .25rem; }
+    .review {
+      border:1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: .7rem .8rem;
+      margin-bottom: .7rem;
+      background: #fbfdff;
+    }
+    .review:last-child { margin-bottom: 0; }
+    .review-text { margin-top: .35rem; line-height: 1.45; }
+    .review-reason { margin-top: .3rem; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .form-actions { display: flex; align-items: center; gap: .6rem; }
+    .caption { margin-top: .1rem; }
+    @media (max-width: 720px) {
+      .container { padding: 1rem; }
+      h1 { font-size: 1.45rem; }
+      .card { padding: .9rem; }
+      .kpi { font-size: 1.2rem; }
+      input[name="source_id"] { min-width: 100% !important; }
+    }
   </style>
 </head>
 <body>
-  <h1>Review Integrity Bot</h1>
+  <div class="container">
+  <div class="title-wrap">
+    <h1>Review Integrity Bot</h1>
+    <p class="sub caption">Quality-aware rating from noisy review streams</p>
+  </div>
 
   <div class="card">
-    <form method="post" action="/analyze-ui" class="row">
+    <form method="post" action="/analyze-ui" class="row" id="analyze-form">
       <label>Source
         <select name="source">
           <option value="serpapi" {% if source == 'serpapi' %}selected{% endif %}>serpapi</option>
@@ -60,7 +187,9 @@
       <label>reviews_limit
         <input type="number" name="reviews_limit" min="1" value="{{ reviews_limit }}" style="width: 92px" />
       </label>
-      <button type="submit">Analyze</button>
+      <div class="form-actions">
+        <button type="submit" id="analyze-btn">Analyze</button>
+      </div>
     </form>
     <p class="sub" style="margin-top:.65rem">
       <strong>How to search:</strong> use place name + city/metro/address for precision.
@@ -76,17 +205,26 @@
   {% endif %}
 
   <div class="card">
+    <h3 style="margin:0 0 .2rem 0">
+      {{ result.place_name or result.source_id }} —
+      official {% if result.official_rating is not none %}{{ result.official_rating }}{% else %}n/a{% endif %}
+      ({% if result.official_review_count is not none %}{{ result.official_review_count }}{% else %}n/a{% endif %} reviews)
+    </h3>
+    {% set contributing_count = (result.per_class_counts.get('valid', 0) + result.per_class_counts.get('low_effort', 0)) %}
     <h3 style="margin-top:0">Official vs True</h3>
-    <div class="grid">
-      <div>
+    <div class="grid stats-grid">
+      <div class="kpi-box">
         <div class="sub">Official (source)</div>
         <div class="kpi">{% if result.official_rating is not none %}{{ result.official_rating }}{% else %}n/a{% endif %}</div>
       </div>
-      <div>
+      <div class="kpi-box">
         <div class="sub">True (filtered)</div>
         <div class="kpi">{% if result.true_rating is not none %}{{ result.true_rating }}{% else %}n/a{% endif %}</div>
+        {% if result.true_rating is none %}
+        <div class="sub">no text reviews to compute true rating</div>
+        {% endif %}
       </div>
-      <div>
+      <div class="kpi-box">
         <div class="sub">Delta (True - Official)</div>
         <div class="kpi">
           {% if result.true_rating is not none and result.official_rating is not none %}
@@ -96,31 +234,64 @@
           {% endif %}
         </div>
       </div>
-      <div>
-        <div class="sub">Sample / Official count</div>
+      <div class="kpi-box">
+        <div class="sub">Fetched sample / Official total</div>
         <div class="kpi">{{ result.sample_size }} / {% if result.official_review_count is not none %}{{ result.official_review_count }}{% else %}n/a{% endif %}</div>
+      </div>
+      <div class="kpi-box">
+        <div class="sub">Contributing (feeds True)</div>
+        <div class="kpi">{{ contributing_count }}</div>
+      </div>
+      <div class="kpi-box">
+        <div class="sub">Excluded</div>
+        <div class="kpi">{{ result.excluded_count }}</div>
       </div>
     </div>
     <p class="tip" style="margin-top:.75rem">
-      Sample avg (bias check): <strong>{{ result.naive_rating }}</strong>
-      {% if result.delta is not none %} | True - Sample delta: <strong>{{ result.delta }}</strong>{% endif %}
-      | Excluded: <strong>{{ result.excluded_count }}</strong>
+      True rating is computed only from reviews with meaningful, non-spam text
+      (<strong>valid</strong> weight 1.0 and <strong>low_effort</strong> weight 0.5).
+      Star-only/empty, speculative, spam, and uncertain reviews are excluded.
     </p>
+    <details class="help">
+      <summary>How it's computed</summary>
+      <p class="sub" style="margin-top:.55rem">
+        Naive = mean of the fetched sample (bias check): <strong>{{ result.naive_rating }}</strong>.
+        Official = source aggregate over all available reviews.
+        True = confidence-weighted average of valid(1.0)+low_effort(0.5) with Bayesian shrinkage
+        (C={{ bayes_prior_strength }}, m={{ bayes_prior_mean }}).
+        {% if result.delta is not none %}True - Sample delta: <strong>{{ result.delta }}</strong>.{% endif %}
+      </p>
+    </details>
   </div>
 
   <div class="card">
     <h3>Class Breakdown</h3>
-    <table>
-      <tr><th>Class</th><th>Count</th></tr>
-      {% for label, count in result.per_class_counts.items() %}
-      <tr><td>{{ label }}</td><td>{{ count }}</td></tr>
-      {% endfor %}
-    </table>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Class</th><th>Count</th><th>Weight / contributes</th><th>Excluded count</th></tr>
+        {% for label, count in result.per_class_counts.items() %}
+        {% if label == "valid" %}
+        {% set class_weight = "1.0 (yes)" %}
+        {% elif label == "low_effort" %}
+        {% set class_weight = "0.5 (yes)" %}
+        {% else %}
+        {% set class_weight = "0.0 (excluded)" %}
+        {% endif %}
+        <tr class="{% if count == 0 %}muted{% endif %}">
+          <td class="mono">{{ label }}</td>
+          <td>{{ count }}</td>
+          <td>{{ class_weight }}</td>
+          <td>{{ result.excluded_by_class.get(label, 0) }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
     <p><strong>Tokens:</strong> {{ result.usage.total_tokens }} | <strong>Estimated cost:</strong> ${{ '%.6f'|format(result.usage.estimated_cost_usd) }}</p>
   </div>
 
   <div class="card">
     <h3>Reviews</h3>
+    <div class="reviews-list">
     {% for review in result.reviews %}
       <div class="review">
         <div class="row">
@@ -129,12 +300,28 @@
           <span class="badge {{ review.label.value }}">{{ review.label.value }}</span>
           <span class="method">{{ review.method.value }}</span>
           <span class="sub">conf {{ '%.2f'|format(review.confidence) }}</span>
+          {% if review.label.value not in ["valid", "low_effort"] %}
+          <span class="excluded-tag">excluded from true</span>
+          {% endif %}
         </div>
-        <div style="margin-top:.3rem">{{ review.text }}</div>
-        <div class="sub" style="margin-top:.25rem">{{ review.reason }}</div>
+        <div class="review-text">{{ review.text }}</div>
+        <div class="sub review-reason">{{ review.reason }}</div>
       </div>
     {% endfor %}
+    </div>
   </div>
   {% endif %}
+  <script>
+    (function () {
+      var form = document.getElementById("analyze-form");
+      var button = document.getElementById("analyze-btn");
+      if (!form || !button) return;
+      form.addEventListener("submit", function () {
+        button.disabled = true;
+        button.textContent = "Analyzing...";
+      });
+    })();
+  </script>
+</div>
 </body>
 </html>

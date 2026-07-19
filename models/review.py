@@ -64,6 +64,7 @@ class AnalyzeRequest(BaseModel):
 class AnalysisResult(BaseModel):
     source: str
     source_id: str
+    place_name: str | None = None
     naive_rating: float
     true_rating: float | None
     delta: float | None

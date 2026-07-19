@@ -94,6 +94,7 @@ async def test_analyze_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result.source_limit == 5
     assert result.excluded_count == 1
     assert result.true_rating == 5.0
+    assert result.place_name == "G"
     assert result.official_rating == 4.8
     assert result.official_review_count == 2400
 
@@ -158,5 +159,6 @@ async def test_analyze_serpapi_happy_path(monkeypatch: pytest.MonkeyPatch) -> No
     assert result.source == "serpapi"
     assert result.source_limit == 30
     assert result.warning is None
+    assert result.place_name == "X"
     assert result.official_rating == 3.2
     assert result.official_review_count == 48500

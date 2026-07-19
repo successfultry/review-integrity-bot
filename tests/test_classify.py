@@ -147,3 +147,46 @@ async def test_llm_path_works_without_prompt_format_error() -> None:
     assert classification.method == ClassificationMethod.llm
     assert classification.label == ReviewClass.valid
     assert usage.total_tokens == 21
+
+
+@pytest.mark.asyncio
+async def test_llm_missing_label_triggers_fallback() -> None:
+    settings = DummySettings()
+    settings.classify_max_retries = 1
+    classifier = ReviewClassifier(settings)
+
+    class _FakeMessage:
+        def __init__(self) -> None:
+            self.content = "{}"
+
+    class _FakeChoice:
+        def __init__(self) -> None:
+            self.message = _FakeMessage()
+
+    class _FakeUsage:
+        prompt_tokens = 10
+        completion_tokens = 5
+        total_tokens = 15
+
+    class _FakeResponse:
+        def __init__(self) -> None:
+            self.choices = [_FakeChoice()]
+            self.usage = _FakeUsage()
+
+    class _FakeCompletions:
+        async def create(self, **kwargs: object) -> _FakeResponse:
+            del kwargs
+            return _FakeResponse()
+
+    class _FakeChat:
+        def __init__(self) -> None:
+            self.completions = _FakeCompletions()
+
+    class _FakeClient:
+        def __init__(self) -> None:
+            self.chat = _FakeChat()
+
+    classifier.client = _FakeClient()  # type: ignore[assignment]
+    review = Review(review_id="r6", rating=4, text="Used for weeks, stable performance", author="z", source="x")
+    classification, _ = await classifier.classify_one(review, trace_id="t6")
+    assert classification.method == ClassificationMethod.fallback
