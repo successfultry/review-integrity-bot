@@ -102,3 +102,35 @@ async def test_serpapi_no_data_id_returns_empty(monkeypatch: pytest.MonkeyPatch)
     assert meta.official_rating == 4.1
     assert meta.official_review_count == 2145
     assert len(calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_serpapi_extracts_official_meta_from_local_results(monkeypatch: pytest.MonkeyPatch) -> None:
+    responses = [
+        {
+            "local_results": [
+                {
+                    "data_id": "local-1",
+                    "title": "Local Place",
+                    "rating": "4.8",
+                    "reviews": "10,386",
+                }
+            ]
+        },
+        {
+            "reviews": [{"rating": 5, "snippet": "great", "user": {"name": "A"}}],
+            "serpapi_pagination": {},
+        },
+    ]
+    calls: list[dict[str, Any]] = []
+
+    def _client_factory(timeout: float) -> _FakeAsyncClient:
+        return _FakeAsyncClient(responses=responses, calls=calls, timeout=timeout)
+
+    monkeypatch.setattr("adapters.serpapi_reviews.httpx.AsyncClient", _client_factory)
+    source = SerpApiReviewSource(api_key="k", reviews_limit=5)
+    out, meta = await source.fetch("local meta query", reviews_limit=1)
+    assert len(out) == 1
+    assert meta.place_name == "Local Place"
+    assert meta.official_rating == 4.8
+    assert meta.official_review_count == 10386

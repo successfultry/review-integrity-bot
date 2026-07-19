@@ -129,32 +129,64 @@ class SerpApiReviewSource:
         return default
 
     def _extract_official_rating(self, payload: dict) -> float | None:
-        place_results = payload.get("place_results", {})
-        if isinstance(place_results, dict):
-            rating = place_results.get("rating")
-            if isinstance(rating, (int, float)):
-                return float(rating)
-            if isinstance(rating, str):
+        def _to_float(raw: object) -> float | None:
+            if isinstance(raw, (int, float)):
+                return float(raw)
+            if isinstance(raw, str):
                 try:
-                    return float(rating)
+                    return float(raw)
                 except ValueError:
                     return None
+            return None
+
+        place_results = payload.get("place_results", {})
+        if isinstance(place_results, dict):
+            rating = _to_float(place_results.get("rating"))
+            if rating is not None:
+                return rating
+        local_results = payload.get("local_results", [])
+        if isinstance(local_results, list) and local_results:
+            first = local_results[0]
+            if isinstance(first, dict):
+                return _to_float(first.get("rating"))
         return None
 
     def _extract_official_review_count(self, payload: dict) -> int | None:
-        place_results = payload.get("place_results", {})
-        if not isinstance(place_results, dict):
+        def _from_record(record: dict) -> int | None:
+            for key in ("reviews", "user_reviews", "reviews_count"):
+                raw = record.get(key)
+                if isinstance(raw, int):
+                    return raw
+                if isinstance(raw, str):
+                    cleaned = "".join(ch for ch in raw if ch.isdigit())
+                    if cleaned:
+                        try:
+                            return int(cleaned)
+                        except ValueError:
+                            continue
             return None
 
-        for key in ("reviews", "user_reviews", "reviews_count"):
-            raw = place_results.get(key)
-            if isinstance(raw, int):
-                return raw
-            if isinstance(raw, str):
-                cleaned = "".join(ch for ch in raw if ch.isdigit())
-                if cleaned:
-                    try:
-                        return int(cleaned)
-                    except ValueError:
-                        continue
+        place_results = payload.get("place_results", {})
+        if isinstance(place_results, dict):
+            count = _from_record(place_results)
+            if count is not None:
+                return count
+
+        local_results = payload.get("local_results", [])
+        if isinstance(local_results, list) and local_results:
+            first = local_results[0]
+            if isinstance(first, dict):
+                count = _from_record(first)
+                if count is not None:
+                    return count
+                raw = first.get("reviews")
+                if isinstance(raw, int):
+                    return raw
+                if isinstance(raw, str):
+                    cleaned = "".join(ch for ch in raw if ch.isdigit())
+                    if cleaned:
+                        try:
+                            return int(cleaned)
+                        except ValueError:
+                            return None
         return None

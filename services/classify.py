@@ -6,7 +6,6 @@ import re
 import secrets
 import time
 import unicodedata
-from typing import Any
 
 from openai import AsyncOpenAI
 
@@ -55,6 +54,14 @@ Rating/text coherence: if the star rating strongly contradicts the text sentimen
 (e.g. 5 stars + clearly negative, or vice versa), LOWER confidence and trust the TEXT.
 
 confidence = calibrated P(label is correct), NOT enthusiasm. Be conservative.
+
+Few-shot disambiguation examples:
+- Input: rating=5, text="Will buy next week, looks awesome from videos."
+  Output: {"label":"speculative","reason":"Author has not used it yet; opinion is future-looking.","confidence":0.92}
+- Input: rating=5, text="good"
+  Output: {"label":"low_effort","reason":"Generic praise without specific first-hand details.","confidence":0.86}
+- Input: rating=4, text="🔥🔥"
+  Output: {"label":"empty","reason":"Emoji-only review has no meaningful textual content.","confidence":0.95}
 
 Output STRICT JSON only, nothing else:
 {"label":"<label>","reason":"<=140 chars, quote evidence","confidence":0.0-1.0}"""
@@ -130,14 +137,35 @@ class ReviewClassifier:
         response = await self.client.chat.completions.create(
             model=self.settings.openai_model,
             temperature=0,
-            response_format={"type": "json_object"},
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "review_classification",
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["label", "reason", "confidence"],
+                        "properties": {
+                            "label": {
+                                "type": "string",
+                                "enum": ["valid", "empty", "speculative", "spam_offtopic", "low_effort"],
+                            },
+                            "reason": {"type": "string"},
+                            "confidence": {"type": "number"},
+                        },
+                    },
+                },
+            },
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
         )
         content = response.choices[0].message.content or "{}"
-        payload = self._parse_json(content)
+        payload = json.loads(content)
+        if not isinstance(payload, dict):
+            raise ValueError("invalid JSON object")
         if not payload or "label" not in payload:
             raise ValueError("missing label in LLM response")
         label = str(payload.get("label", "uncertain"))
@@ -177,21 +205,6 @@ class ReviewClassifier:
         t = _INVISIBLE_RE.sub("", t)
         t = _MARKER_RE.sub(" ", t)
         return t.strip()
-
-    def _parse_json(self, text: str) -> dict[str, Any]:
-        try:
-            data = json.loads(text)
-            if isinstance(data, dict):
-                return data
-        except json.JSONDecodeError:
-            pass
-        match = re.search(r"\{.*\}", text, flags=re.S)
-        if not match:
-            raise ValueError("invalid JSON output")
-        data = json.loads(match.group(0))
-        if not isinstance(data, dict):
-            raise ValueError("invalid JSON object")
-        return data
 
     def _apply_threshold(self, cls: Classification) -> Classification:
         if cls.confidence < self.settings.classifier_confidence_threshold:

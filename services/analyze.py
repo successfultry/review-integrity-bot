@@ -4,11 +4,13 @@ from adapters.base import PlaceMeta
 from adapters.google_maps import GOOGLE_REVIEW_LIMIT, GoogleMapsReviewSource
 from adapters.serpapi_reviews import SERPAPI_DEFAULT_REVIEWS_LIMIT, SerpApiReviewSource
 from core.config import Settings
+from core.cost import merge_usage
 from core.logging import get_logger
 from models.review import AnalysisResult, AnalyzeRequest, AnalyzedReview, ReviewClass
 from services.classify import ReviewClassifier
 from services.errors import SourceError
 from services.score import score_reviews
+from services.summarize import ReviewSummarizer
 
 LOG = get_logger(__name__)
 _CONTRIBUTING_LABELS = {ReviewClass.valid, ReviewClass.low_effort}
@@ -18,6 +20,7 @@ class ReviewAnalyzer:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self.classifier = ReviewClassifier(settings)
+        self.summarizer = ReviewSummarizer(settings)
         self.google_source = GoogleMapsReviewSource(settings.google_maps_api_key)
         self.serpapi_source = SerpApiReviewSource(
             api_key=settings.serpapi_api_key,
@@ -68,7 +71,7 @@ class ReviewAnalyzer:
         if not reviews:
             raise SourceError(f"no reviews found for source={source!r} source_id={source_id!r}")
 
-        classifications, usage = await self.classifier.classify_reviews(reviews, trace_id=trace_id)
+        classifications, classify_usage = await self.classifier.classify_reviews(reviews, trace_id=trace_id)
         score = score_reviews(
             ratings=[r.rating for r in reviews],
             labels=[c.label for c in classifications],
@@ -94,6 +97,13 @@ class ReviewAnalyzer:
             for r, c in zip(reviews, classifications)
         ]
         analyzed_reviews.sort(key=lambda item: item.label not in _CONTRIBUTING_LABELS)
+        contributing_reviews = [review for review, cls in zip(reviews, classifications) if cls.label in _CONTRIBUTING_LABELS]
+        summary_ru, pros_ru, cons_ru, summary_usage = await self.summarizer.summarize(
+            trace_id=trace_id,
+            place_name=meta.place_name,
+            reviews=contributing_reviews,
+        )
+        usage = merge_usage([classify_usage, summary_usage])
 
         sample_size = len(reviews)
         if source == "google_maps" and sample_size >= GOOGLE_REVIEW_LIMIT:
@@ -117,6 +127,9 @@ class ReviewAnalyzer:
             official_review_count=meta.official_review_count,
             source_limit=source_limit,
             warning=warning,
+            summary_ru=summary_ru,
+            pros_ru=pros_ru,
+            cons_ru=cons_ru,
             excluded_count=int(score["excluded_count"]),
             excluded_by_class=dict(score["excluded_by_class"]),
             per_class_counts=dict(score["per_class_counts"]),

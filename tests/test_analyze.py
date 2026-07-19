@@ -67,6 +67,7 @@ async def test_analyze_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:
         )
 
     async def fake_classify(reviews: list[Review], trace_id: str) -> tuple[list[Classification], Usage]:
+        del reviews, trace_id
         return (
             [
                 Classification(
@@ -82,11 +83,28 @@ async def test_analyze_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:
                     method=ClassificationMethod.heuristic,
                 ),
             ],
-            Usage(),
+            Usage(prompt_tokens=11, completion_tokens=7, total_tokens=18, estimated_cost_usd=0.12345678),
+        )
+
+    async def fake_summary(
+        *,
+        trace_id: str,
+        place_name: str,
+        reviews: list[Review],
+    ) -> tuple[str | None, list[str], list[str], Usage]:
+        assert trace_id == "t"
+        assert place_name == "G"
+        assert len(reviews) == 1
+        return (
+            "Короткий итог.",
+            ["Быстро обслуживают"],
+            ["Редкие спорные оценки"],
+            Usage(prompt_tokens=5, completion_tokens=3, total_tokens=8, estimated_cost_usd=0.02345678),
         )
 
     monkeypatch.setattr(analyzer.google_source, "fetch", fake_fetch)
     monkeypatch.setattr(analyzer.classifier, "classify_reviews", fake_classify)
+    monkeypatch.setattr(analyzer.summarizer, "summarize", fake_summary)
 
     result = await analyzer.analyze(AnalyzeRequest(source="google_maps", source_id="place"), trace_id="t")
     assert result.source == "google_maps"
@@ -97,6 +115,13 @@ async def test_analyze_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result.place_name == "G"
     assert result.official_rating == 4.8
     assert result.official_review_count == 2400
+    assert result.summary_ru == "Короткий итог."
+    assert result.pros_ru == ["Быстро обслуживают"]
+    assert result.cons_ru == ["Редкие спорные оценки"]
+    assert result.usage.total_tokens == 26
+    assert result.usage.prompt_tokens == 16
+    assert result.usage.completion_tokens == 10
+    assert result.usage.estimated_cost_usd == 0.14691356
 
 
 @pytest.mark.asyncio

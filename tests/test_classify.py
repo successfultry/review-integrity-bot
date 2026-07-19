@@ -131,6 +131,12 @@ async def test_llm_path_works_without_prompt_format_error() -> None:
             user_msg = messages[1]["content"] if len(messages) > 1 else ""
             assert "<<REVIEW:" in user_msg
             assert "<<END:" in user_msg
+            response_format = kwargs.get("response_format", {})
+            assert isinstance(response_format, dict)
+            assert response_format.get("type") == "json_schema"
+            json_schema = response_format.get("json_schema", {})
+            assert isinstance(json_schema, dict)
+            assert json_schema.get("strict") is True
             return _FakeResponse()
 
     class _FakeChat:

@@ -74,6 +74,9 @@ class AnalysisResult(BaseModel):
     official_review_count: int | None = None
     source_limit: int | None = None
     warning: str | None = None
+    summary_ru: str | None = None
+    pros_ru: list[str] = Field(default_factory=list)
+    cons_ru: list[str] = Field(default_factory=list)
     excluded_count: int = 0
     excluded_by_class: dict[str, int] = Field(default_factory=dict)
     per_class_counts: dict[str, int]

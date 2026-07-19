@@ -130,6 +130,19 @@
     }
     th { color: #334155; font-weight: 650; }
     .reviews-list { margin-top: .25rem; }
+    .reviews-controls { display: flex; justify-content: flex-end; margin-bottom: .6rem; }
+    .mode-toggle { display: inline-flex; border: 1px solid #cbd5e1; border-radius: 10px; overflow: hidden; }
+    .mode-btn {
+      border: 0;
+      background: #f8fafc;
+      color: #334155;
+      padding: .35rem .7rem;
+      font-size: .8rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .mode-btn:hover { box-shadow: none; transform: none; }
+    .mode-btn.active { background: #1e293b; color: #fff; }
     .review {
       border:1px solid #e2e8f0;
       border-radius: 12px;
@@ -140,6 +153,13 @@
     .review:last-child { margin-bottom: 0; }
     .review-text { margin-top: .35rem; line-height: 1.45; }
     .review-reason { margin-top: .3rem; }
+    .reviews-list.compact .review-text {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+    .reviews-list.compact .review-reason { display: none; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
     .form-actions { display: flex; align-items: center; gap: .6rem; }
     .caption { margin-top: .1rem; }
@@ -209,6 +229,39 @@
   {% if result.warning %}<p class="warn">{{ result.warning }}</p>{% endif %}
   {% if fallback_count > 0 %}
   <p class="warn">LLM unavailable for {{ fallback_count }} reviews; heuristic fallback was used. Check OPENAI_API_KEY / USE_LLM / logs.</p>
+  {% endif %}
+
+  {% if result.summary_ru %}
+  <div class="card">
+    <h3 style="margin-top:0">Итог (RU)</h3>
+    <p style="margin-top:.15rem">{{ result.summary_ru }}</p>
+    <div class="grid" style="margin-top:.6rem">
+      <div class="kpi-box" style="min-height:auto">
+        <div class="sub">Плюсы</div>
+        {% if result.pros_ru %}
+        <ul style="margin:.4rem 0 0 1rem; padding:0">
+          {% for item in result.pros_ru %}
+          <li style="margin:.2rem 0">{{ item }}</li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <div class="sub" style="margin-top:.4rem">нет явных плюсов</div>
+        {% endif %}
+      </div>
+      <div class="kpi-box" style="min-height:auto">
+        <div class="sub">Минусы</div>
+        {% if result.cons_ru %}
+        <ul style="margin:.4rem 0 0 1rem; padding:0">
+          {% for item in result.cons_ru %}
+          <li style="margin:.2rem 0">{{ item }}</li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <div class="sub" style="margin-top:.4rem">явные минусы не выделены</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
   {% endif %}
 
   <div class="card">
@@ -298,7 +351,14 @@
 
   <div class="card">
     <h3>Reviews</h3>
-    <div class="reviews-list">
+    {% set default_reviews_mode = "compact" if result.sample_size > 25 else "detailed" %}
+    <div class="reviews-controls">
+      <div class="mode-toggle" role="group" aria-label="reviews mode">
+        <button type="button" class="mode-btn {% if default_reviews_mode == 'compact' %}active{% endif %}" data-mode="compact">Compact</button>
+        <button type="button" class="mode-btn {% if default_reviews_mode == 'detailed' %}active{% endif %}" data-mode="detailed">Detailed</button>
+      </div>
+    </div>
+    <div class="reviews-list {{ default_reviews_mode }}" id="reviews-list">
     {% for review in result.reviews %}
       <div class="review">
         <div class="row">
@@ -322,21 +382,37 @@
     (function () {
       var form = document.getElementById("analyze-form");
       var button = document.getElementById("analyze-btn");
-      if (!form || !button) return;
-      form.addEventListener("submit", function () {
-        var limitInput = form.querySelector('input[name="reviews_limit"]');
-        if (limitInput) {
-          var min = parseInt(limitInput.min || "1", 10);
-          var max = parseInt(limitInput.max || "1", 10);
-          var raw = parseInt(limitInput.value || String(min), 10);
-          if (!Number.isFinite(raw)) raw = min;
-          if (raw < min) raw = min;
-          if (raw > max) raw = max;
-          limitInput.value = String(raw);
-        }
-        button.disabled = true;
-        button.textContent = "Analyzing...";
-      });
+      if (form && button) {
+        form.addEventListener("submit", function () {
+          var limitInput = form.querySelector('input[name="reviews_limit"]');
+          if (limitInput) {
+            var min = parseInt(limitInput.min || "1", 10);
+            var max = parseInt(limitInput.max || "1", 10);
+            var raw = parseInt(limitInput.value || String(min), 10);
+            if (!Number.isFinite(raw)) raw = min;
+            if (raw < min) raw = min;
+            if (raw > max) raw = max;
+            limitInput.value = String(raw);
+          }
+          button.disabled = true;
+          button.textContent = "Analyzing...";
+        });
+      }
+
+      var reviewsList = document.getElementById("reviews-list");
+      var modeButtons = document.querySelectorAll(".mode-btn");
+      if (reviewsList && modeButtons.length) {
+        modeButtons.forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            var mode = btn.getAttribute("data-mode");
+            if (mode !== "compact" && mode !== "detailed") return;
+            reviewsList.classList.remove("compact", "detailed");
+            reviewsList.classList.add(mode);
+            modeButtons.forEach(function (b) { b.classList.remove("active"); });
+            btn.classList.add("active");
+          });
+        });
+      }
     })();
   </script>
 </div>
