@@ -185,7 +185,14 @@
         </select>
       </label>
       <label>reviews_limit
-        <input type="number" name="reviews_limit" min="1" value="{{ reviews_limit }}" style="width: 92px" />
+        <input
+          type="number"
+          name="reviews_limit"
+          min="1"
+          max="{{ serpapi_reviews_limit }}"
+          value="{{ reviews_limit }}"
+          style="width: 92px"
+        />
       </label>
       <div class="form-actions">
         <button type="submit" id="analyze-btn">Analyze</button>
@@ -317,6 +324,16 @@
       var button = document.getElementById("analyze-btn");
       if (!form || !button) return;
       form.addEventListener("submit", function () {
+        var limitInput = form.querySelector('input[name="reviews_limit"]');
+        if (limitInput) {
+          var min = parseInt(limitInput.min || "1", 10);
+          var max = parseInt(limitInput.max || "1", 10);
+          var raw = parseInt(limitInput.value || String(min), 10);
+          if (!Number.isFinite(raw)) raw = min;
+          if (raw < min) raw = min;
+          if (raw > max) raw = max;
+          limitInput.value = String(raw);
+        }
         button.disabled = true;
         button.textContent = "Analyzing...";
       });
