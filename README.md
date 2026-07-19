@@ -2,15 +2,15 @@
 
 Async FastAPI app that computes an **honest ("true") rating** from noisy public reviews.
 
-## Задача (Day 35)
+## Day 35 Task
 
-Автоматизировать проверку «честности» рейтинга места: собрать реальные отзывы из live-источника, отфильтровать шум/накрутки/нерелевантные тексты и пересчитать итоговую оценку, которую можно сравнить с официальной.
+Automate the integrity check of a place rating: fetch live reviews, filter noise/manipulation/irrelevant content, and recompute a trustworthy score that can be compared with the official source rating.
 
-Как участвует AI:
+How AI is used:
 
-- LLM классифицирует качество каждого отзыва (`valid`, `empty`, `speculative`, `spam_offtopic`, `low_effort`) в строгом JSON-формате.
-- LLM формирует русский итог по релевантным отзывам: `summary_ru`, `pros_ru`, `cons_ru`.
-- На основе LLM-классификации сервис считает `true_rating` (взвешенная оценка с Bayesian shrinkage), а не просто «среднюю по звездам».
+- The LLM classifies each review quality into strict labels (`valid`, `empty`, `speculative`, `spam_offtopic`, `low_effort`) using strict JSON output.
+- The LLM generates a Russian high-level summary for relevant reviews: `summary_ru`, `pros_ru`, `cons_ru`.
+- The service computes `true_rating` from LLM-assisted filtering and weighting (with Bayesian shrinkage), instead of using a raw star average.
 
 ## Why this project exists
 
