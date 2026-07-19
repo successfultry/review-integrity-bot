@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Review Integrity Bot</title>
+  <style>
+    body { font-family: Inter, system-ui, sans-serif; margin: 2rem; background: #f8fafc; color: #0f172a; }
+    .card { background: white; border-radius: 12px; padding: 1rem 1.2rem; box-shadow: 0 2px 10px rgba(0,0,0,.06); margin-bottom: 1rem; }
+    .row { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+    input, select, button { padding: .5rem .7rem; border-radius: 8px; border: 1px solid #cbd5e1; }
+    button { background: #0f172a; color: white; cursor: pointer; }
+    .kpi { font-size: 1.2rem; font-weight: 700; }
+    .badge { padding: .18rem .45rem; border-radius: 999px; font-size: .75rem; font-weight: 600; }
+    .valid { background:#dcfce7; color:#166534; }
+    .low_effort { background:#e0e7ff; color:#3730a3; }
+    .speculative { background:#fef3c7; color:#92400e; }
+    .spam_offtopic { background:#fee2e2; color:#991b1b; }
+    .empty { background:#e2e8f0; color:#334155; }
+    .uncertain { background:#f1f5f9; color:#475569; }
+    .error { color:#b91c1c; font-weight:600; }
+    .warn { color:#92400e; background:#fef3c7; padding:.5rem .7rem; border-radius:8px; }
+    table { border-collapse: collapse; width: 100%; }
+    td, th { border-bottom: 1px solid #e2e8f0; padding: .4rem .2rem; text-align: left; }
+  </style>
+</head>
+<body>
+  <h1>Review Integrity Bot</h1>
+
+  <div class="card">
+    <form method="post" action="/analyze-ui" class="row">
+      <label>Source
+        <select name="source">
+          <option value="google_maps" {% if source == 'google_maps' %}selected{% endif %}>google_maps</option>
+          <option value="serpapi" {% if source == 'serpapi' %}selected{% endif %}>serpapi</option>
+        </select>
+      </label>
+      <label>Place query / source_id
+        <input name="source_id" value="{{ source_id }}" placeholder="e.g. Central Park New York" required />
+      </label>
+      <button type="submit">Analyze</button>
+    </form>
+    {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  </div>
+
+  {% if result %}
+  {% if result.warning %}<p class="warn">{{ result.warning }}</p>{% endif %}
+  <div class="card row">
+    <div><div>Naive rating</div><div class="kpi">{{ result.naive_rating }}</div></div>
+    <div><div>True rating</div><div class="kpi">{% if result.true_rating is not none %}{{ result.true_rating }}{% else %}n/a{% endif %}</div></div>
+    <div><div>Delta</div><div class="kpi">{% if result.delta is not none %}{{ result.delta }}{% else %}n/a{% endif %}</div></div>
+    <div><div>Sample</div><div class="kpi">{{ result.sample_size }}{% if result.source_limit %}/{{ result.source_limit }}{% endif %}</div></div>
+    <div><div>Excluded</div><div class="kpi">{{ result.excluded_count }}</div></div>
+  </div>
+
+  <div class="card">
+    <h3>Class Breakdown</h3>
+    <table>
+      <tr><th>Class</th><th>Count</th></tr>
+      {% for label, count in result.per_class_counts.items() %}
+      <tr><td>{{ label }}</td><td>{{ count }}</td></tr>
+      {% endfor %}
+    </table>
+    <p><strong>Tokens:</strong> {{ result.usage.total_tokens }}
+       | <strong>Estimated cost:</strong> ${{ '%.6f'|format(result.usage.estimated_cost_usd) }}</p>
+  </div>
+
+  <div class="card">
+    <h3>Reviews</h3>
+    {% for review in result.reviews %}
+      <div style="border-bottom:1px solid #e2e8f0; padding:.6rem 0;">
+        <div class="row">
+          <strong>{{ review.review_id }}</strong>
+          <span>★ {{ review.rating }}</span>
+          <span class="badge {{ review.label.value }}">{{ review.label.value }}</span>
+          <span>conf {{ '%.2f'|format(review.confidence) }}</span>
+          <span>{{ review.method.value }}</span>
+        </div>
+        <div>{{ review.text }}</div>
+        <div style="color:#334155; font-size:.9rem">{{ review.reason }}</div>
+      </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</body>
+</html>
